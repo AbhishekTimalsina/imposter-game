@@ -44,7 +44,7 @@ function shuffle(arr) {
 
 function randomItem(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function initials(name) { return name.trim().slice(0, 2).toUpperCase(); }
-function minPlayersFor(count) { return count === 1 ? 4 : count === 2 ? 6 : 8; }
+function minPlayersFor(count) { return count === 1 ? 3 : count === 2 ? 6 : 8; }
 
 /* ══════════════════════════════════════════════
    SCREEN ROUTING
@@ -181,8 +181,8 @@ function validateSetup() {
   const startBtn = document.getElementById('start-game-btn');
   const msg = document.getElementById('validation-msg');
 
-  if (count < 4) {
-    msg.textContent = 'Add at least 4 players to start.';
+  if (count < 3) {
+    msg.textContent = 'Add at least 3 players to start.';
     startBtn.disabled = true;
   } else if (count < needed) {
     msg.textContent = `Need ${needed} players for ${state.imposterCount} imposter${state.imposterCount > 1 ? 's' : ''}.`;
@@ -225,6 +225,30 @@ function showRevealScreen() {
   renderRevealCard();
 }
 
+const FLIP_DURATION = 550; // must match CSS transition duration in ms
+
+function clearBackFace() {
+  // Wipe secret content so it can never bleed through during animation
+  const flipBack = document.getElementById('flip-back');
+  flipBack.className = 'flip-back';
+  document.getElementById('role-badge').textContent = '';
+  document.getElementById('role-label').textContent = '';
+  document.getElementById('role-word').textContent = '';
+}
+
+function populateCard(role) {
+  // Front face
+  document.getElementById('reveal-avatar').textContent = initials(role.name);
+  document.getElementById('reveal-player-name').textContent = role.name;
+
+  // Back face — safe to write now because card is facing front
+  const flipBack = document.getElementById('flip-back');
+  flipBack.className = 'flip-back ' + (role.isImposter ? 'is-imposter' : 'is-normal');
+  document.getElementById('role-badge').textContent = '';
+  document.getElementById('role-label').textContent = role.roleLabel;
+  document.getElementById('role-word').textContent = role.word;
+}
+
 function renderRevealCard() {
   const role = state.roles[state.currentReveal];
   const total = state.roles.length;
@@ -232,18 +256,8 @@ function renderRevealCard() {
   document.getElementById('reveal-progress').textContent =
     `Player ${state.currentReveal + 1} of ${total}`;
 
-  const flipInner = document.getElementById('flip-inner');
-  flipInner.classList.remove('flipped');
-
-  document.getElementById('reveal-avatar').textContent = initials(role.name);
-  document.getElementById('reveal-player-name').textContent = role.name;
-
-  const flipBack = document.getElementById('flip-back');
-  flipBack.className = 'flip-back ' + (role.isImposter ? 'is-imposter' : 'is-normal');
-  document.getElementById('role-badge').textContent = '';
-  document.getElementById('role-label').textContent = role.roleLabel;
-  document.getElementById('role-word').textContent = role.word;
-
+  // Card is already facing front here (first card or after nextPlayer settled)
+  populateCard(role);
   document.getElementById('next-player-btn').classList.add('hidden');
 }
 
@@ -253,16 +267,31 @@ function flipCard() {
   flipInner.classList.add('flipped');
   setTimeout(() => {
     document.getElementById('next-player-btn').classList.remove('hidden');
-  }, 500);
+  }, FLIP_DURATION);
 }
 
 function nextPlayer() {
   state.currentReveal++;
+  const flipInner = document.getElementById('flip-inner');
+
   if (state.currentReveal >= state.roles.length) {
-    showStartScreen();
-  } else {
-    renderRevealCard();
+    // No next card — just go to start screen after flip-back
+    clearBackFace();
+    flipInner.classList.remove('flipped');
+    setTimeout(() => showStartScreen(), FLIP_DURATION);
+    return;
   }
+
+  // Step 1: Wipe secret content immediately (card is still showing back face)
+  clearBackFace();
+
+  // Step 2: Flip back to front
+  flipInner.classList.remove('flipped');
+
+  // Step 3: Only after the flip-back animation finishes, write the next player's data
+  setTimeout(() => {
+    renderRevealCard();
+  }, FLIP_DURATION);
 }
 
 /* ══════════════════════════════════════════════
