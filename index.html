@@ -15,6 +15,13 @@
 </head>
 <body>
 
+  <!-- PWA Install Banner -->
+  <div id="pwa-banner" class="pwa-banner hidden">
+    <span>📲 Install as App</span>
+    <button id="pwa-install-btn" class="pwa-install-btn">Install</button>
+    <button id="pwa-dismiss-btn" class="pwa-dismiss-btn">✕</button>
+  </div>
+
   <!-- ===== SETUP SCREEN ===== -->
   <div id="screen-setup" class="screen active">
     <div class="brand">
@@ -66,22 +73,17 @@
     <div class="reveal-stage">
       <div id="reveal-card" class="flip-card">
         <div class="flip-inner" id="flip-inner">
-
-          <!-- Front: hidden face -->
           <div class="flip-front">
             <div class="player-avatar" id="reveal-avatar"></div>
             <p class="player-name-reveal" id="reveal-player-name"></p>
             <p class="tap-hint">Tap to reveal your role</p>
             <div class="tap-icon">👆</div>
           </div>
-
-          <!-- Back: revealed face -->
           <div class="flip-back" id="flip-back">
             <div class="role-badge" id="role-badge"></div>
             <p class="role-label" id="role-label"></p>
             <p class="role-word" id="role-word"></p>
           </div>
-
         </div>
       </div>
     </div>
@@ -98,11 +100,8 @@
       <h2 class="start-title">Game On!</h2>
       <p class="start-sub">First to speak:</p>
       <div class="first-player-badge" id="first-player-name"></div>
-
       <div class="action-group">
-        <button id="begin-game-btn" class="btn btn-primary btn-full">
-          Begin Game
-        </button>
+        <button id="begin-game-btn" class="btn btn-primary btn-full">Begin Game</button>
       </div>
     </div>
   </div>
@@ -113,7 +112,6 @@
       <div class="start-icon">🕵️</div>
       <h2 class="start-title">Find Them!</h2>
       <p class="start-sub">Discuss &amp; vote — who's the imposter?</p>
-
       <div class="action-group">
         <button id="reveal-imposter-btn" class="btn btn-reveal btn-full">
           👁 Reveal Imposter
@@ -129,23 +127,16 @@
         <div class="imposter-reveal-icon">🎭</div>
         <h2 class="start-title">The Imposter<span class="accent-dot">.</span></h2>
       </div>
-
       <div id="imposter-list" class="imposter-list"></div>
-
       <div class="word-reveal-box">
         <p class="word-reveal-label">Secret Word</p>
         <p class="word-reveal-value" id="secret-word-display"></p>
         <p class="word-reveal-label" style="margin-top:10px">Imposter's Hint</p>
         <p class="word-reveal-value hint-value" id="hint-word-display"></p>
       </div>
-
       <div class="action-group">
-        <button id="play-again-btn" class="btn btn-primary btn-full">
-          Play Again
-        </button>
-        <button id="back-setup-btn" class="btn btn-ghost btn-full">
-          Back to Setup
-        </button>
+        <button id="play-again-btn" class="btn btn-primary btn-full">Play Again</button>
+        <button id="back-setup-btn" class="btn btn-ghost btn-full">Back to Setup</button>
       </div>
     </div>
   </div>

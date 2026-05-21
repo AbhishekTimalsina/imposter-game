@@ -354,3 +354,36 @@ function init() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+/* ══════════════════════════════════════════════
+   PWA INSTALL PROMPT
+══════════════════════════════════════════════ */
+let deferredInstallPrompt = null;
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  const banner = document.getElementById('pwa-banner');
+  banner.classList.remove('hidden');
+});
+
+window.addEventListener('appinstalled', () => {
+  document.getElementById('pwa-banner').classList.add('hidden');
+  deferredInstallPrompt = null;
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('pwa-install-btn').addEventListener('click', async () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    const { outcome } = await deferredInstallPrompt.userChoice;
+    if (outcome === 'accepted') {
+      document.getElementById('pwa-banner').classList.add('hidden');
+    }
+    deferredInstallPrompt = null;
+  });
+
+  document.getElementById('pwa-dismiss-btn').addEventListener('click', () => {
+    document.getElementById('pwa-banner').classList.add('hidden');
+  });
+});
