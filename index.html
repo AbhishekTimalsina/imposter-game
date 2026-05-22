@@ -31,6 +31,7 @@
     </div>
 
     <div class="card">
+      <!-- Player input -->
       <div class="input-row">
         <input
           type="text"
@@ -47,12 +48,48 @@
 
       <div class="divider"></div>
 
+      <!-- Imposter count -->
       <div class="imposter-row">
         <span class="label">Imposters</span>
         <div class="stepper">
           <button class="stepper-btn" id="imp-minus">−</button>
           <span id="imp-count">1</span>
           <button class="stepper-btn" id="imp-plus">+</button>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Word Mode Toggle -->
+      <div class="word-mode-row">
+        <span class="label">Word Pack</span>
+        <div class="mode-toggle">
+          <button id="mode-default-btn" class="mode-btn active">Default</button>
+          <button id="mode-custom-btn" class="mode-btn">Custom</button>
+        </div>
+      </div>
+
+      <!-- Custom Words Panel -->
+      <div id="custom-words-panel" class="custom-words-panel hidden">
+        <textarea
+          id="custom-words-input"
+          class="custom-words-textarea"
+          spellcheck="false"
+          placeholder='Paste JSON array of word pairs here, e.g.:
+[
+  { "word": "Momo", "hint": "Steamed" },
+  { "word": "Everest", "hint": "Tallest" }
+]'
+        ></textarea>
+        <div id="custom-words-status" class="custom-words-status"></div>
+
+        <!-- AI Prompt Box -->
+        <div class="ai-prompt-box">
+          <div class="ai-prompt-header">
+            <span class="ai-prompt-label">🤖 AI Prompt</span>
+            <button id="copy-prompt-btn" class="copy-prompt-btn">Copy</button>
+          </div>
+          <p class="ai-prompt-text" id="ai-prompt-text">Give me 20 word-hint pairs for an Imposter Word Game. Format as a JSON array like [{ "word": "...", "hint": "..." }]. Topic: [Nepali food / Cricket / Bollywood / etc]. The hint must be a single related word — not the word itself. Return only the JSON array, nothing else.</p>
         </div>
       </div>
 

@@ -6,6 +6,8 @@
 const state = {
   players: [],
   imposterCount: 1,
+  useCustomWords: false,
+  customWordPairs: [],   // validated pairs from textarea
   roles: [],
   currentReveal: 0,
   selectedWord: null,
@@ -15,23 +17,32 @@ const state = {
    PERSISTENCE
 ══════════════════════════════════════════════ */
 function saveToStorage() {
-  localStorage.setItem('iwg_players', JSON.stringify(state.players));
-  localStorage.setItem('iwg_imposters', String(state.imposterCount));
+  localStorage.setItem('iwg_players',      JSON.stringify(state.players));
+  localStorage.setItem('iwg_imposters',    String(state.imposterCount));
+  localStorage.setItem('iwg_custom_mode',  String(state.useCustomWords));
+  localStorage.setItem('iwg_custom_words', document.getElementById('custom-words-input').value);
 }
 
 function loadFromStorage() {
   try {
-    const p = localStorage.getItem('iwg_players');
-    const i = localStorage.getItem('iwg_imposters');
-    if (p) state.players = JSON.parse(p);
-    if (i) state.imposterCount = Math.max(1, Math.min(3, Number(i)));
+    const p  = localStorage.getItem('iwg_players');
+    const i  = localStorage.getItem('iwg_imposters');
+    const cm = localStorage.getItem('iwg_custom_mode');
+    const cw = localStorage.getItem('iwg_custom_words');
+    if (p)  state.players       = JSON.parse(p);
+    if (i)  state.imposterCount = Math.max(1, Math.min(3, Number(i)));
+    if (cm) state.useCustomWords = cm === 'true';
+    if (cw) document.getElementById('custom-words-input').value = cw;
   } catch (_) {}
 }
 
 /* ══════════════════════════════════════════════
    UTILS
 ══════════════════════════════════════════════ */
-function uid() { return Math.random().toString(36).slice(2, 9); }
+function uid()          { return Math.random().toString(36).slice(2, 9); }
+function randomItem(a)  { return a[Math.floor(Math.random() * a.length)]; }
+function initials(name) { return name.trim().slice(0, 2).toUpperCase(); }
+function minPlayersFor(count) { return count === 1 ? 3 : count === 2 ? 6 : 8; }
 
 function shuffle(arr) {
   const a = [...arr];
@@ -41,10 +52,6 @@ function shuffle(arr) {
   }
   return a;
 }
-
-function randomItem(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-function initials(name) { return name.trim().slice(0, 2).toUpperCase(); }
-function minPlayersFor(count) { return count === 1 ? 3 : count === 2 ? 6 : 8; }
 
 /* ══════════════════════════════════════════════
    SCREEN ROUTING
@@ -56,7 +63,78 @@ function showScreen(id) {
 }
 
 /* ══════════════════════════════════════════════
-   SETUP SCREEN
+   CUSTOM WORD MODE
+══════════════════════════════════════════════ */
+function setWordMode(custom) {
+  state.useCustomWords = custom;
+  const panel     = document.getElementById('custom-words-panel');
+  const defaultBtn = document.getElementById('mode-default-btn');
+  const customBtn  = document.getElementById('mode-custom-btn');
+
+  if (custom) {
+    panel.classList.remove('hidden');
+    customBtn.classList.add('active');
+    defaultBtn.classList.remove('active');
+    parseCustomWords(); // validate immediately on switch
+  } else {
+    panel.classList.add('hidden');
+    defaultBtn.classList.add('active');
+    customBtn.classList.remove('active');
+    state.customWordPairs = [];
+  }
+  saveToStorage();
+  validateSetup();
+}
+
+function parseCustomWords() {
+  const raw    = document.getElementById('custom-words-input').value.trim();
+  const status = document.getElementById('custom-words-status');
+
+  if (!raw) {
+    state.customWordPairs = [];
+    status.textContent = '';
+    status.className   = 'custom-words-status';
+    validateSetup();
+    saveToStorage();
+    return;
+  }
+
+  try {
+    // Strip JS-style comments and trailing commas to be forgiving
+    const cleaned = raw
+      .replace(/\/\/.*$/gm, '')          // remove // comments
+      .replace(/,\s*([}\]])/g, '$1');    // remove trailing commas
+
+    const parsed = JSON.parse(cleaned);
+
+    if (!Array.isArray(parsed)) throw new Error('Must be a JSON array [ ... ]');
+
+    const valid = parsed.filter((item, idx) => {
+      if (typeof item !== 'object' || item === null) return false;
+      if (typeof item.word !== 'string' || !item.word.trim()) return false;
+      if (typeof item.hint !== 'string' || !item.hint.trim()) return false;
+      return true;
+    });
+
+    if (valid.length === 0) throw new Error('No valid pairs found. Each item needs "word" and "hint" strings.');
+
+    const skipped = parsed.length - valid.length;
+    state.customWordPairs = valid.map(v => ({ word: v.word.trim(), hint: v.hint.trim() }));
+
+    status.className = 'custom-words-status ok';
+    status.textContent = `✅ ${valid.length} pairs loaded${skipped ? ` (${skipped} skipped — missing word/hint)` : ''}`;
+  } catch (err) {
+    state.customWordPairs = [];
+    status.className = 'custom-words-status error';
+    status.textContent = `❌ ${err.message}`;
+  }
+
+  saveToStorage();
+  validateSetup();
+}
+
+/* ══════════════════════════════════════════════
+   PLAYER LIST
 ══════════════════════════════════════════════ */
 function renderPlayerList() {
   const list = document.getElementById('player-list');
@@ -105,19 +183,14 @@ function startEdit(id, nameEl, avatar, editBtn) {
   nameEl.contentEditable = 'true';
   nameEl.focus();
   document.execCommand('selectAll', false, null);
-
   editBtn.textContent = '✔️';
-  editBtn.setAttribute('aria-label', 'Save name');
   editBtn.replaceWith(editBtn.cloneNode(true));
-
   const saveBtn = nameEl.parentElement.querySelector('.icon-btn.edit');
   saveBtn.addEventListener('click', () => commitEdit(id, nameEl, avatar, saveBtn));
-
   nameEl.addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); commitEdit(id, nameEl, avatar, saveBtn); }
-    if (e.key === 'Escape') { cancelEdit(id, nameEl, avatar, saveBtn); }
+    if (e.key === 'Escape') cancelEdit(id, nameEl, avatar, saveBtn);
   });
-
   nameEl.addEventListener('blur', () => {
     setTimeout(() => { if (nameEl.isEditing) commitEdit(id, nameEl, avatar, saveBtn); }, 150);
   }, { once: true });
@@ -176,28 +249,36 @@ function updateImposterCount(delta) {
 }
 
 function validateSetup() {
-  const count = state.players.length;
-  const needed = minPlayersFor(state.imposterCount);
+  const count   = state.players.length;
+  const needed  = minPlayersFor(state.imposterCount);
   const startBtn = document.getElementById('start-game-btn');
-  const msg = document.getElementById('validation-msg');
+  const msg      = document.getElementById('validation-msg');
 
   if (count < 3) {
     msg.textContent = 'Add at least 3 players to start.';
     startBtn.disabled = true;
-  } else if (count < needed) {
+    return;
+  }
+  if (count < needed) {
     msg.textContent = `Need ${needed} players for ${state.imposterCount} imposter${state.imposterCount > 1 ? 's' : ''}.`;
     startBtn.disabled = true;
-  } else {
-    msg.textContent = '';
-    startBtn.disabled = false;
+    return;
   }
+  if (state.useCustomWords && state.customWordPairs.length === 0) {
+    msg.textContent = 'Add valid word pairs above, or switch to Default.';
+    startBtn.disabled = true;
+    return;
+  }
+  msg.textContent = '';
+  startBtn.disabled = false;
 }
 
 /* ══════════════════════════════════════════════
    GAME LOGIC
 ══════════════════════════════════════════════ */
 function startGame() {
-  state.selectedWord = randomItem(WORD_PAIRS);
+  const pool = state.useCustomWords ? state.customWordPairs : WORD_PAIRS;
+  state.selectedWord = randomItem(pool);
 
   const shuffled = shuffle(state.players);
   const imposterIndices = new Set();
@@ -206,10 +287,10 @@ function startGame() {
   }
 
   state.roles = shuffled.map((player, i) => ({
-    playerId: player.id,
-    name: player.name,
+    playerId:  player.id,
+    name:      player.name,
     isImposter: imposterIndices.has(i),
-    word: imposterIndices.has(i) ? state.selectedWord.hint : state.selectedWord.word,
+    word:      imposterIndices.has(i) ? state.selectedWord.hint : state.selectedWord.word,
     roleLabel: imposterIndices.has(i) ? 'You Are The Imposter' : 'Your Word',
   }));
 
@@ -220,43 +301,35 @@ function startGame() {
 /* ══════════════════════════════════════════════
    REVEAL SCREEN
 ══════════════════════════════════════════════ */
+const FLIP_DURATION = 550;
+
 function showRevealScreen() {
   showScreen('screen-reveal');
   renderRevealCard();
 }
 
-const FLIP_DURATION = 550; // must match CSS transition duration in ms
-
 function clearBackFace() {
-  // Wipe secret content so it can never bleed through during animation
   const flipBack = document.getElementById('flip-back');
   flipBack.className = 'flip-back';
   document.getElementById('role-badge').textContent = '';
   document.getElementById('role-label').textContent = '';
-  document.getElementById('role-word').textContent = '';
+  document.getElementById('role-word').textContent  = '';
 }
 
 function populateCard(role) {
-  // Front face
-  document.getElementById('reveal-avatar').textContent = initials(role.name);
+  document.getElementById('reveal-avatar').textContent      = initials(role.name);
   document.getElementById('reveal-player-name').textContent = role.name;
-
-  // Back face — safe to write now because card is facing front
   const flipBack = document.getElementById('flip-back');
   flipBack.className = 'flip-back ' + (role.isImposter ? 'is-imposter' : 'is-normal');
   document.getElementById('role-badge').textContent = '';
   document.getElementById('role-label').textContent = role.roleLabel;
-  document.getElementById('role-word').textContent = role.word;
+  document.getElementById('role-word').textContent  = role.word;
 }
 
 function renderRevealCard() {
-  const role = state.roles[state.currentReveal];
+  const role  = state.roles[state.currentReveal];
   const total = state.roles.length;
-
-  document.getElementById('reveal-progress').textContent =
-    `Player ${state.currentReveal + 1} of ${total}`;
-
-  // Card is already facing front here (first card or after nextPlayer settled)
+  document.getElementById('reveal-progress').textContent = `Player ${state.currentReveal + 1} of ${total}`;
   populateCard(role);
   document.getElementById('next-player-btn').classList.add('hidden');
 }
@@ -275,23 +348,15 @@ function nextPlayer() {
   const flipInner = document.getElementById('flip-inner');
 
   if (state.currentReveal >= state.roles.length) {
-    // No next card — just go to start screen after flip-back
     clearBackFace();
     flipInner.classList.remove('flipped');
     setTimeout(() => showStartScreen(), FLIP_DURATION);
     return;
   }
 
-  // Step 1: Wipe secret content immediately (card is still showing back face)
   clearBackFace();
-
-  // Step 2: Flip back to front
   flipInner.classList.remove('flipped');
-
-  // Step 3: Only after the flip-back animation finishes, write the next player's data
-  setTimeout(() => {
-    renderRevealCard();
-  }, FLIP_DURATION);
+  setTimeout(() => renderRevealCard(), FLIP_DURATION);
 }
 
 /* ══════════════════════════════════════════════
@@ -308,29 +373,22 @@ function showStartScreen() {
 ══════════════════════════════════════════════ */
 function showImposterReveal() {
   const imposters = state.roles.filter(r => r.isImposter);
-
-  // Build imposter cards
   const list = document.getElementById('imposter-list');
   list.innerHTML = '';
   imposters.forEach(imp => {
     const card = document.createElement('div');
     card.className = 'imposter-card';
-
     const av = document.createElement('div');
     av.className = 'imposter-card-avatar';
     av.textContent = initials(imp.name);
-
     const nm = document.createElement('span');
     nm.className = 'imposter-card-name';
     nm.textContent = imp.name;
-
     card.append(av, nm);
     list.appendChild(card);
   });
-
   document.getElementById('secret-word-display').textContent = state.selectedWord.word;
-  document.getElementById('hint-word-display').textContent = state.selectedWord.hint;
-
+  document.getElementById('hint-word-display').textContent   = state.selectedWord.hint;
   showScreen('screen-imposter-reveal');
 }
 
@@ -343,7 +401,46 @@ function initListeners() {
   nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') addPlayer(nameInput.value); });
 
   document.getElementById('imp-minus').addEventListener('click', () => updateImposterCount(-1));
-  document.getElementById('imp-plus').addEventListener('click', () => updateImposterCount(1));
+  document.getElementById('imp-plus').addEventListener('click',  () => updateImposterCount(1));
+
+  document.getElementById('mode-default-btn').addEventListener('click', () => setWordMode(false));
+  document.getElementById('mode-custom-btn').addEventListener('click',  () => setWordMode(true));
+
+  document.getElementById('copy-prompt-btn').addEventListener('click', () => {
+    const promptText = document.getElementById('ai-prompt-text').textContent;
+    const btn = document.getElementById('copy-prompt-btn');
+    navigator.clipboard.writeText(promptText).then(() => {
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = 'Copy';
+        btn.classList.remove('copied');
+      }, 2000);
+    }).catch(() => {
+      // Fallback for older browsers
+      const ta = document.createElement('textarea');
+      ta.value = promptText;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = 'Copy';
+        btn.classList.remove('copied');
+      }, 2000);
+    });
+  });
+
+  // Parse on input with short debounce so it doesn't fire on every keystroke
+  let debounceTimer;
+  document.getElementById('custom-words-input').addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(parseCustomWords, 600);
+  });
 
   document.getElementById('start-game-btn').addEventListener('click', startGame);
 
@@ -351,7 +448,6 @@ function initListeners() {
   document.getElementById('next-player-btn').addEventListener('click', nextPlayer);
 
   document.getElementById('begin-game-btn').addEventListener('click', () => showScreen('screen-play'));
-
   document.getElementById('reveal-imposter-btn').addEventListener('click', showImposterReveal);
 
   document.getElementById('play-again-btn').addEventListener('click', startGame);
@@ -362,27 +458,13 @@ function initListeners() {
 }
 
 /* ══════════════════════════════════════════════
-   SERVICE WORKER REGISTRATION
+   SERVICE WORKER
 ══════════════════════════════════════════════ */
 function registerSW() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 }
-
-/* ══════════════════════════════════════════════
-   INIT
-══════════════════════════════════════════════ */
-function init() {
-  loadFromStorage();
-  document.getElementById('imp-count').textContent = state.imposterCount;
-  renderPlayerList();
-  initListeners();
-  showScreen('screen-setup');
-  registerSW();
-}
-
-document.addEventListener('DOMContentLoaded', init);
 
 /* ══════════════════════════════════════════════
    PWA INSTALL PROMPT
@@ -392,8 +474,7 @@ let deferredInstallPrompt = null;
 window.addEventListener('beforeinstallprompt', e => {
   e.preventDefault();
   deferredInstallPrompt = e;
-  const banner = document.getElementById('pwa-banner');
-  banner.classList.remove('hidden');
+  document.getElementById('pwa-banner').classList.remove('hidden');
 });
 
 window.addEventListener('appinstalled', () => {
@@ -401,18 +482,34 @@ window.addEventListener('appinstalled', () => {
   deferredInstallPrompt = null;
 });
 
-document.addEventListener('DOMContentLoaded', () => {
+/* ══════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════ */
+function init() {
+  loadFromStorage();
+  document.getElementById('imp-count').textContent = state.imposterCount;
+  renderPlayerList();
+  initListeners();
+
+  // Restore custom mode UI state after listeners are attached
+  if (state.useCustomWords) {
+    setWordMode(true);
+  }
+
+  // PWA banner buttons
   document.getElementById('pwa-install-btn').addEventListener('click', async () => {
     if (!deferredInstallPrompt) return;
     deferredInstallPrompt.prompt();
     const { outcome } = await deferredInstallPrompt.userChoice;
-    if (outcome === 'accepted') {
-      document.getElementById('pwa-banner').classList.add('hidden');
-    }
+    if (outcome === 'accepted') document.getElementById('pwa-banner').classList.add('hidden');
     deferredInstallPrompt = null;
   });
-
   document.getElementById('pwa-dismiss-btn').addEventListener('click', () => {
     document.getElementById('pwa-banner').classList.add('hidden');
   });
-});
+
+  showScreen('screen-setup');
+  registerSW();
+}
+
+document.addEventListener('DOMContentLoaded', init);
