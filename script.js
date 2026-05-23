@@ -8,6 +8,7 @@ const state = {
   imposterCount: 1,
   useCustomWords: false,
   customWordPairs: [],   // validated pairs from textarea
+  usedWordIndices: [],   // tracks already-played words this session
   roles: [],
   currentReveal: 0,
   selectedWord: null,
@@ -67,6 +68,7 @@ function showScreen(id) {
 ══════════════════════════════════════════════ */
 function setWordMode(custom) {
   state.useCustomWords = custom;
+  state.usedWordIndices = []; // reset history when switching modes
   const panel     = document.getElementById('custom-words-panel');
   const defaultBtn = document.getElementById('mode-default-btn');
   const customBtn  = document.getElementById('mode-custom-btn');
@@ -120,6 +122,7 @@ function parseCustomWords() {
 
     const skipped = parsed.length - valid.length;
     state.customWordPairs = valid.map(v => ({ word: v.word.trim(), hint: v.hint.trim() }));
+    state.usedWordIndices = []; // reset history when word list changes
 
     status.className = 'custom-words-status ok';
     status.textContent = `✅ ${valid.length} pairs loaded${skipped ? ` (${skipped} skipped — missing word/hint)` : ''}`;
@@ -276,9 +279,23 @@ function validateSetup() {
 /* ══════════════════════════════════════════════
    GAME LOGIC
 ══════════════════════════════════════════════ */
+function pickWord(pool) {
+  // Reset used list when all words have been played
+  if (state.usedWordIndices.length >= pool.length) {
+    state.usedWordIndices = [];
+  }
+  // Build list of indices not yet used
+  const available = pool
+    .map((_, i) => i)
+    .filter(i => !state.usedWordIndices.includes(i));
+  const idx = available[Math.floor(Math.random() * available.length)];
+  state.usedWordIndices.push(idx);
+  return pool[idx];
+}
+
 function startGame() {
   const pool = state.useCustomWords ? state.customWordPairs : WORD_PAIRS;
-  state.selectedWord = randomItem(pool);
+  state.selectedWord = pickWord(pool);
 
   const shuffled = shuffle(state.players);
   const imposterIndices = new Set();
